@@ -285,12 +285,40 @@
                font-size: 28px;
            }
        }
+
+      .plus-button {
+    background: #2196F3;  /* כחול */
+}
+
+.form-input {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    font-size: 16px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+#idScanScreen {
+    text-align: right;
+    color: white;
+}
+
+#idScanScreen h2 {
+    text-align: center;
+    margin-bottom: 20px;
+}
    </style>
 </head>
 <body>
    <div id="mainScreen" class="main-screen active">
     <button class="action-button entry-button" onclick="showCodeScreen('entry')">Приход</button>
     <button class="action-button exit-button" onclick="showCodeScreen('exit')">Уход</button>
+    <button class="action-button plus-button" onclick="showIDScanScreen()">+</button>
     <button class="action-button shabbat-button" onclick="showCodeScreen('shabbat')">Суббота</button>
     <button class="action-button event-button" onclick="showCodeScreen('event')">банкет</button>
 </div>
@@ -355,6 +383,38 @@
     </div>
 </div>
 
+   <div id="idScanScreen" class="container" style="display: none;">
+    <div id="idVideoContainer">
+        <video id="idVideo" autoplay playsinline></video>
+        <canvas id="idCanvas" style="display: none;"></canvas>
+    </div>
+    
+    <div id="idDetailsForm">
+        <h2>פרטי תעודה מזהה</h2>
+        <div class="form-group">
+            <label>שם פרטי</label>
+            <input type="text" id="firstName" class="form-input">
+        </div>
+        <div class="form-group">
+            <label>שם משפחה</label>
+            <input type="text" id="lastName" class="form-input">
+        </div>
+        <div class="form-group">
+            <label>מספר תעודת זהות</label>
+            <input type="text" id="idNumber" class="form-input">
+        </div>
+        <div class="form-group">
+            <label>תאריך לידה</label>
+            <input type="date" id="birthDate" class="form-input">
+        </div>
+        
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button class="close-button" style="background: #f44336;" onclick="returnToMain()">ביטול</button>
+            <button class="close-button" onclick="submitNewPerson()">אישור</button>
+        </div>
+    </div>
+</div>
+
    <script>
        let code = '';
        let currentAction = '';
@@ -365,7 +425,7 @@
        const loader = document.getElementById('loader');
        const mainScreen = document.getElementById('mainScreen');
        const codeScreen = document.getElementById('codeScreen');
-       const webhookUrl = 'YOUR-WEBHOOK-URL';
+       const webhookUrl = 'https://hook.integrator.boost.space/c5tedq5xtry1h4esu4jn70joj503oi7x';
        const errorOverlay = document.getElementById('errorOverlay');
 
        function stopCamera() {
@@ -586,6 +646,111 @@ function resetApp() {
        // Initialize with main screen visible
        mainScreen.classList.add('active');
        codeScreen.classList.remove('active');
+
+      const idScanScreen = document.getElementById('idScanScreen');
+const idVideo = document.getElementById('idVideo');
+const idCanvas = document.getElementById('idCanvas');
+const newPersonWebhookUrl = 'https://hook.integrator.boost.space/6596she29xov3falmux3q83qemwkb1tl';
+
+function showIDScanScreen() {
+    stopCamera(); // Stop any existing camera
+    mainScreen.classList.remove('active');
+    idScanScreen.style.display = 'block';
+    
+    setTimeout(() => {
+        startIDCamera();
+    }, 100);
+}
+
+async function startIDCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                facingMode: 'environment', // Use rear camera for ID scanning
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+            } 
+        });
+        idVideo.srcObject = stream;
+        await idVideo.play();
+    } catch (err) {
+        console.error('ID Camera error:', err);
+        showErrorOverlay('שגיאה בהפעלת המצלמה');
+    }
+}
+
+function captureIDImage() {
+    idCanvas.width = idVideo.videoWidth;
+    idCanvas.height = idVideo.videoHeight;
+    idCanvas.getContext('2d').drawImage(idVideo, 0, 0);
+    
+    const imageBase64 = idCanvas.toDataURL('image/jpeg', 0.9);
+    return imageBase64;
+}
+
+function submitNewPerson() {
+    loader.style.display = 'flex';
+    
+    // Capture ID image
+    const idImageBase64 = captureIDImage().split(',')[1];
+    
+    // Collect form data
+    const personData = {
+        firstName: document.getElementById('firstName').value,
+        lastName: document.getElementById('lastName').value,
+        idNumber: document.getElementById('idNumber').value,
+        birthDate: document.getElementById('birthDate').value
+    };
+    
+    // Send data to webhook
+    fetch(newPersonWebhookUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            ...personData,
+            idImage: idImageBase64,
+            timestamp: Date.now()
+        })
+    })
+    .then(response => {
+        if (response.ok) {
+            showSuccessOverlay();
+            stopCamera();
+        } else {
+            throw new Error('שגיאה בשליחת נתונים');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showErrorOverlay('שגיאה בהוספת משתמש חדש');
+    })
+    .finally(() => {
+        loader.style.display = 'none';
+    });
+}
+
+// Modify existing returnToMain to handle the new screen
+function returnToMain() {
+    stopCamera();
+    
+    // Hide all screens
+    mainScreen.classList.add('active');
+    codeScreen.classList.remove('active');
+    idScanScreen.style.display = 'none';
+    
+    // Reset form
+    document.getElementById('firstName').value = '';
+    document.getElementById('lastName').value = '';
+    document.getElementById('idNumber').value = '';
+    document.getElementById('birthDate').value = '';
+    
+    // Reset other states
+    code = '';
+    display.textContent = '';
+}
    </script>
 </body>
 </html>
