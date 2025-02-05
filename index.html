@@ -429,6 +429,13 @@
     </div>
 </div>
 
+   <div id="idScanScreen" class="container" style="display: none;">
+    <div id="scanInstructions" style="text-align: center; margin-bottom: 15px; color: yellow;">
+        אנא הצב את תעודת הזהות מול המצלמה בזווית ישרה
+    </div>
+    <!-- שאר הקוד נשאר זהה -->
+</div>
+
    <script>
        let code = '';
        let currentAction = '';
@@ -810,6 +817,61 @@ async function startAutoScan() {
     
     processFrame();
 }
+
+      async function startAutoScan() {
+    const { createWorker } = Tesseract;
+    const worker = await createWorker('heb+eng');  // תמיכה בעברית ואנגלית
+    
+    let scanInterval = setInterval(async () => {
+        idCanvas.width = idVideo.videoWidth;
+        idCanvas.height = idVideo.videoHeight;
+        idCanvas.getContext('2d').drawImage(idVideo, 0, 0);
+        
+        try {
+            const { data: { text } } = await worker.recognize(idCanvas);
+            
+            // חיפוש מספרי ת"ז בפורמטים שונים
+            const idMatches = text.match(/(\d{9}|\d{7,8})/g);
+            
+            if (idMatches && idMatches.length > 0) {
+                document.getElementById('idNumber').value = idMatches[0];
+                clearInterval(scanInterval);
+                worker.terminate();
+            }
+        } catch (error) {
+            console.error('סריקה נכשלה:', error);
+        }
+    }, 1000);  // סריקה כל שנייה
+}
+
+      async function startAutoScan() {
+    const { createWorker } = Tesseract;
+    const worker = await createWorker('heb+eng');
+    
+    let scanInterval = setInterval(async () => {
+        idCanvas.width = idVideo.videoWidth;
+        idCanvas.height = idVideo.videoHeight;
+        idCanvas.getContext('2d').drawImage(idVideo, 0, 0);
+        
+        try {
+            const { data: { text } } = await worker.recognize(idCanvas);
+            console.log('טקסט שזוהה:', text);  // הדפסת הטקסט הסרוק
+            
+            const idMatches = text.match(/(\d{9}|\d{7,8})/g);
+            
+            if (idMatches && idMatches.length > 0) {
+                console.log('מספר ת"ז זוהה:', idMatches[0]);
+                document.getElementById('idNumber').value = idMatches[0];
+                clearInterval(scanInterval);
+                worker.terminate();
+            }
+        } catch (error) {
+            console.error('סריקה נכשלה:', error);
+        }
+    }, 1000);
+}
+
+      
    </script>
 </body>
 </html>
