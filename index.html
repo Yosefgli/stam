@@ -128,16 +128,8 @@
   const employeeId = localStorage.getItem("employeeId");
   if (!employeeId) return alert("לא מוגדר employeeId");
 
-  let location;
-  try {
-    location = await getLocation();
-  } catch (err) {
-    console.error("שגיאה בקבלת מיקום:", err);
-    alert("יש לאשר גישה למיקום כדי להמשיך");
-    return;
-  }
-
   const isWorking = localStorage.getItem("isWorking") === 'true';
+  const location = await getLocation();
 
   if (!isWorking) {
     const res = await fetch(ENTRY_WEBHOOK, {
@@ -156,7 +148,8 @@
     setButtonState(true);
     updateTimer(localStorage.getItem("startTime"));
   } else {
-    await sendWebhook(EXIT_WEBHOOK, {
+    // נשלח את הוובהוק בלי לחכות
+    sendWebhook(EXIT_WEBHOOK, {
       employeeId,
       shiftId: localStorage.getItem("shiftId"),
       action: 'end',
@@ -170,6 +163,7 @@
     setButtonState(false);
   }
 };
+
 
     function init() {
       const employeeId = localStorage.getItem("employeeId");
