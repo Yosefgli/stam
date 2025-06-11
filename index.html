@@ -128,39 +128,64 @@
   const employeeId = localStorage.getItem("employeeId");
   if (!employeeId) return alert("לא מוגדר employeeId");
 
+  let location;
+  try {
+    location = await getLocation();
+  } catch (err) {
+    console.error("שגיאה בקבלת מיקום:", err);
+    alert("יש לאפשר גישה למיקום כדי להמשיך");
+    return;
+  }
+
   const isWorking = localStorage.getItem("isWorking") === 'true';
-  const location = await getLocation();
 
   if (!isWorking) {
-    const res = await fetch(ENTRY_WEBHOOK, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        employeeId,
-        action: 'start',
-        location
-      })
-    });
-    const result = await res.json();
+    // עדכון סטטוס מיידי
     localStorage.setItem("isWorking", 'true');
-    localStorage.setItem("shiftId", result.shiftId);
-    localStorage.setItem("startTime", new Date().toISOString());
+    const shiftId = "shift_" + Date.now(); // גיבוי למקרה שאין תוצאה משרת
+    localStorage.setItem("shiftId", shiftId);
+    const startTime = new Date().toISOString();
+    localStorage.setItem("startTime", startTime);
     setButtonState(true);
-    updateTimer(localStorage.getItem("startTime"));
+    updateTimer(startTime);
+
+    // שליחה ברקע
+    sendWebhook(ENTRY_WEBHOOK, {
+      employeeId,
+      action: 'start',
+      location
+    }).then(async res => {
+      try {
+        const result = await res.json();
+        if (result.shiftId) {
+          localStorage.setItem("shiftId", result.shiftId);
+        }
+      } catch (e) {
+        console.warn("לא הצלחנו לפרש תשובת webhook:", e);
+      }
+    }).catch(err => {
+      console.error("שגיאה בשליחת כניסה:", err);
+    });
+
   } else {
-    // נשלח את הוובהוק בלי לחכות
+    // עדכון סטטוס מיידי
+    localStorage.removeItem("isWorking");
+    localStorage.removeItem("startTime");
+    setButtonState(false);
+    clearInterval(interval);
+    timerEl.textContent = "00:00:00";
+
+    // שליחה ברקע
     sendWebhook(EXIT_WEBHOOK, {
       employeeId,
       shiftId: localStorage.getItem("shiftId"),
       action: 'end',
       location
+    }).catch(err => {
+      console.error("שגיאה בשליחת יציאה:", err);
     });
-    localStorage.removeItem("isWorking");
+
     localStorage.removeItem("shiftId");
-    localStorage.removeItem("startTime");
-    clearInterval(interval);
-    timerEl.textContent = "00:00:00";
-    setButtonState(false);
   }
 };
 
