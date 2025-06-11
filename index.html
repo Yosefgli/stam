@@ -3,34 +3,40 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>דיווח עובד</title>
+  <title>התחברות עובד</title>
   <style>
-    body, html {
+    html, body {
       margin: 0;
       padding: 0;
       height: 100%;
+      font-family: sans-serif;
     }
-    #login-screen {
-      display: flex;
-      flex-direction: column;
+    .screen {
+      display: none;
+      height: 100%;
+      width: 100%;
       justify-content: center;
       align-items: center;
-      height: 100%;
-      font-family: sans-serif;
+      flex-direction: column;
+    }
+    .active {
+      display: flex;
     }
     input {
       padding: 10px;
       font-size: 1.2em;
-      margin-top: 10px;
+      margin: 10px;
       text-align: center;
     }
     button {
       padding: 10px 20px;
       font-size: 1.1em;
-      margin-top: 10px;
+      margin: 10px;
       cursor: pointer;
     }
     iframe {
+      position: absolute;
+      top: 0; left: 0;
       width: 100%;
       height: 100%;
       border: none;
@@ -39,38 +45,76 @@
 </head>
 <body>
 
-<div id="login-screen">
+<!-- שלב 1 - הזנת שם משתמש -->
+<div id="login-screen" class="screen active">
   <h2>הזן את שם המשתמש שלך</h2>
-  <input type="text" id="username" placeholder="למשל: yossi123">
-  <button onclick="saveUsername()">היכנס</button>
+  <input type="text" id="username" placeholder="למשל: yossi123" />
+  <button onclick="startAuth()">שלח קוד</button>
 </div>
 
-<div id="app" style="display: none;">
+<!-- שלב 2 - הזנת קוד אימות -->
+<div id="code-screen" class="screen">
+  <h2>הזן את קוד האימות שנשלח</h2>
+  <input type="text" id="verifyCode" maxlength="6" placeholder="6 ספרות" />
+  <button onclick="checkCode()">אמת</button>
+</div>
+
+<!-- שלב 3 - אפליקציה -->
+<div id="app-screen" class="screen">
   <iframe id="filloutFrame"></iframe>
 </div>
 
 <script>
-  const storedUser = localStorage.getItem("id");
+  const webhookURL = "https://hook.integrator.boost.space/v6kx9oca4yospakzjwecgr2234t8khk3";
+  const formURL = "https://forms.chabad.kz/t/7XJM4hH1prus?id=";
 
-  if (storedUser) {
-    showApp(storedUser);
+  let generatedCode = "";
+  let currentUser = "";
+
+  const savedUser = localStorage.getItem("workerId");
+  if (savedUser) {
+    loadApp(savedUser);
   }
 
-  function saveUsername() {
+  function startAuth() {
     const username = document.getElementById("username").value.trim();
-    if (!username) {
-      alert("נא להזין שם משתמש");
-      return;
-    }
-    localStorage.setItem("id", username);
-    showApp(username);
+    if (!username) return alert("נא להזין שם משתמש");
+
+    currentUser = username;
+    generatedCode = String(Math.floor(100000 + Math.random() * 900000)); // קוד 6 ספרות
+
+    // שליחת הקוד לוובהוק
+    fetch(webhookURL, {
+      method: "POST",
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        username: currentUser,
+        code: generatedCode
+      })
+    });
+
+    // מעבר להזנת קוד
+    showScreen("code-screen");
   }
 
-  function showApp(username) {
-    document.getElementById("login-screen").style.display = "none";
-    document.getElementById("app").style.display = "block";
-    const filloutURL = `https://forms.chabad.kz/t/7XJM4hH1prus?id=${encodeURIComponent(username)}`;
-    document.getElementById("filloutFrame").src = filloutURL;
+  function checkCode() {
+    const codeInput = document.getElementById("verifyCode").value.trim();
+    if (codeInput === generatedCode) {
+      localStorage.setItem("workerId", currentUser);
+      loadApp(currentUser);
+    } else {
+      alert("קוד שגוי, נסה שוב");
+    }
+  }
+
+  function loadApp(userId) {
+    showScreen("app-screen");
+    document.getElementById("filloutFrame").src = formURL + encodeURIComponent(userId);
+  }
+
+  function showScreen(id) {
+    document.querySelectorAll(".screen").forEach(div => div.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
   }
 </script>
 
