@@ -33,17 +33,33 @@
   </style>
 </head>
 <body>
-  <button id="toggleBtn">▶</button>
-  <div id="timer">00:00:00</div>
+  <div id="authSection" style="display: none; flex-direction: column; align-items: center;">
+    <input type="text" id="employeeCode" placeholder="הכנס קוד עובד" />
+    <button onclick="sendVerificationCode()">שלח קוד</button>
+    <input type="text" id="verificationCode" placeholder="הכנס קוד אימות" style="display:none; margin-top:10px;" />
+    <button id="verifyButton" onclick="verifyCode()" style="display:none;">אמת</button>
+  </div>
+
+  <div id="mainApp" style="display: none; flex-direction: column; align-items: center;">
+    <button id="toggleBtn">▶</button>
+    <div id="timer">00:00:00</div>
+  </div>
 
   <script>
     const ENTRY_WEBHOOK = "https://hook.integrator.boost.space/v6kx9oca4yospakzjwecgr2234t8khk3";
     const EXIT_WEBHOOK = "https://hook.integrator.boost.space/v6kx9oca4yospakzjwecgr2234t8khk3";
+    const VERIFY_WEBHOOK = "https://hook.integrator.boost.space/v6kx9oca4yospakzjwecgr2234t8khk3";
 
     const btn = document.getElementById("toggleBtn");
     const timerEl = document.getElementById("timer");
+    const authSection = document.getElementById("authSection");
+    const mainApp = document.getElementById("mainApp");
+    const verificationInput = document.getElementById("verificationCode");
+    const verifyButton = document.getElementById("verifyButton");
 
     let interval;
+    let generatedCode = null;
+    let tempEmployeeId = null;
 
     function updateTimer(startTime) {
       clearInterval(interval);
@@ -81,6 +97,33 @@
       });
     }
 
+    function sendVerificationCode() {
+      const id = document.getElementById("employeeCode").value.trim();
+      if (!id) return alert("אנא הזן קוד עובד");
+
+      generatedCode = String(Math.floor(100000 + Math.random() * 900000));
+      tempEmployeeId = id;
+
+      sendWebhook(VERIFY_WEBHOOK, {
+        employeeId: id,
+        code: generatedCode
+      });
+
+      verificationInput.style.display = "inline";
+      verifyButton.style.display = "inline";
+    }
+
+    function verifyCode() {
+      const enteredCode = verificationInput.value.trim();
+      if (enteredCode === generatedCode) {
+        localStorage.setItem("employeeId", tempEmployeeId);
+        authSection.style.display = "none";
+        mainApp.style.display = "flex";
+      } else {
+        alert("קוד שגוי, נסה שוב");
+      }
+    }
+
     btn.onclick = async () => {
       const employeeId = localStorage.getItem("employeeId");
       if (!employeeId) return alert("לא מוגדר employeeId");
@@ -89,7 +132,6 @@
       const location = await getLocation();
 
       if (!isWorking) {
-        // כניסה
         const res = await fetch(ENTRY_WEBHOOK, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -106,7 +148,6 @@
         setButtonState(true);
         updateTimer(localStorage.getItem("startTime"));
       } else {
-        // יציאה
         await sendWebhook(EXIT_WEBHOOK, {
           employeeId,
           shiftId: localStorage.getItem("shiftId"),
@@ -122,11 +163,21 @@
       }
     };
 
-    // Restore state
-    if (localStorage.getItem("isWorking") === 'true') {
-      setButtonState(true);
-      updateTimer(localStorage.getItem("startTime"));
+    function init() {
+      const employeeId = localStorage.getItem("employeeId");
+      if (employeeId) {
+        authSection.style.display = "none";
+        mainApp.style.display = "flex";
+        if (localStorage.getItem("isWorking") === 'true') {
+          setButtonState(true);
+          updateTimer(localStorage.getItem("startTime"));
+        }
+      } else {
+        authSection.style.display = "flex";
+      }
     }
+
+    init();
   </script>
 </body>
 </html>
