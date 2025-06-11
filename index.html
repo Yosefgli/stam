@@ -1,122 +1,132 @@
 <!DOCTYPE html>
-<html lang="he">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>התחברות עובד</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shift Tracker</title>
   <style>
-    html, body {
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
       margin: 0;
-      padding: 0;
-      height: 100%;
       font-family: sans-serif;
     }
-    .screen {
-      display: none;
-      height: 100%;
-      width: 100%;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-    }
-    .active {
-      display: flex;
-    }
-    input {
-      padding: 10px;
-      font-size: 1.2em;
-      margin: 10px;
-      text-align: center;
-    }
     button {
-      padding: 10px 20px;
-      font-size: 1.1em;
-      margin: 10px;
-      cursor: pointer;
-    }
-    iframe {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%;
-      height: 100%;
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
       border: none;
+      font-size: 32px;
+      color: white;
+      background-color: green;
+    }
+    .stop {
+      background-color: red;
+    }
+    #timer {
+      margin-top: 20px;
+      font-size: 24px;
     }
   </style>
 </head>
 <body>
+  <button id="toggleBtn">▶</button>
+  <div id="timer">00:00:00</div>
 
-<!-- שלב 1 - הזנת שם משתמש -->
-<div id="login-screen" class="screen active">
-  <h2>הזן את שם המשתמש שלך</h2>
-  <input type="text" id="username" placeholder="למשל: yossi123" />
-  <button onclick="startAuth()">שלח קוד</button>
-</div>
+  <script>
+    const ENTRY_WEBHOOK = "https://hook.integrator.boost.space/v6kx9oca4yospakzjwecgr2234t8khk3";
+    const EXIT_WEBHOOK = "https://hook.integrator.boost.space/v6kx9oca4yospakzjwecgr2234t8khk3";
 
-<!-- שלב 2 - הזנת קוד אימות -->
-<div id="code-screen" class="screen">
-  <h2>הזן את קוד האימות שנשלח</h2>
-  <input type="text" id="verifyCode" maxlength="6" placeholder="6 ספרות" />
-  <button onclick="checkCode()">אמת</button>
-</div>
+    const btn = document.getElementById("toggleBtn");
+    const timerEl = document.getElementById("timer");
 
-<!-- שלב 3 - אפליקציה -->
-<div id="app-screen" class="screen">
-  <iframe id="filloutFrame"></iframe>
-</div>
+    let interval;
 
-<script>
-  const webhookURL = "https://hook.integrator.boost.space/v6kx9oca4yospakzjwecgr2234t8khk3";
-  const formURL = "https://forms.chabad.kz/t/7XJM4hH1prus?id=";
-
-  let generatedCode = "";
-  let currentUser = "";
-
-  const savedUser = localStorage.getItem("workerId");
-  if (savedUser) {
-    loadApp(savedUser);
-  }
-
-  function startAuth() {
-    const username = document.getElementById("username").value.trim();
-    if (!username) return alert("נא להזין שם משתמש");
-
-    currentUser = username;
-    generatedCode = String(Math.floor(100000 + Math.random() * 900000)); // קוד 6 ספרות
-
-    // שליחת הקוד לוובהוק
-    fetch(webhookURL, {
-      method: "POST",
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        username: currentUser,
-        code: generatedCode
-      })
-    });
-
-    // מעבר להזנת קוד
-    showScreen("code-screen");
-  }
-
-  function checkCode() {
-    const codeInput = document.getElementById("verifyCode").value.trim();
-    if (codeInput === generatedCode) {
-      localStorage.setItem("workerId", currentUser);
-      loadApp(currentUser);
-    } else {
-      alert("קוד שגוי, נסה שוב");
+    function updateTimer(startTime) {
+      clearInterval(interval);
+      interval = setInterval(() => {
+        const elapsed = Date.now() - new Date(startTime);
+        const hours = String(Math.floor(elapsed / 3600000)).padStart(2, '0');
+        const minutes = String(Math.floor((elapsed % 3600000) / 60000)).padStart(2, '0');
+        const seconds = String(Math.floor((elapsed % 60000) / 1000)).padStart(2, '0');
+        timerEl.textContent = `${hours}:${minutes}:${seconds}`;
+      }, 1000);
     }
-  }
 
-  function loadApp(userId) {
-    showScreen("app-screen");
-    document.getElementById("filloutFrame").src = formURL + encodeURIComponent(userId);
-  }
+    function setButtonState(isWorking) {
+      btn.textContent = isWorking ? '■' : '▶';
+      btn.classList.toggle('stop', isWorking);
+    }
 
-  function showScreen(id) {
-    document.querySelectorAll(".screen").forEach(div => div.classList.remove("active"));
-    document.getElementById(id).classList.add("active");
-  }
-</script>
+    async function getLocation() {
+      return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          pos => resolve({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude
+          }),
+          err => reject(err)
+        );
+      });
+    }
 
+    async function sendWebhook(url, data) {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    }
+
+    btn.onclick = async () => {
+      const employeeId = localStorage.getItem("employeeId");
+      if (!employeeId) return alert("לא מוגדר employeeId");
+
+      const isWorking = localStorage.getItem("isWorking") === 'true';
+      const location = await getLocation();
+
+      if (!isWorking) {
+        // כניסה
+        const res = await fetch(ENTRY_WEBHOOK, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            employeeId,
+            action: 'start',
+            location
+          })
+        });
+        const result = await res.json();
+        localStorage.setItem("isWorking", 'true');
+        localStorage.setItem("shiftId", result.shiftId);
+        localStorage.setItem("startTime", new Date().toISOString());
+        setButtonState(true);
+        updateTimer(localStorage.getItem("startTime"));
+      } else {
+        // יציאה
+        await sendWebhook(EXIT_WEBHOOK, {
+          employeeId,
+          shiftId: localStorage.getItem("shiftId"),
+          action: 'end',
+          location
+        });
+        localStorage.removeItem("isWorking");
+        localStorage.removeItem("shiftId");
+        localStorage.removeItem("startTime");
+        clearInterval(interval);
+        timerEl.textContent = "00:00:00";
+        setButtonState(false);
+      }
+    };
+
+    // Restore state
+    if (localStorage.getItem("isWorking") === 'true') {
+      setButtonState(true);
+      updateTimer(localStorage.getItem("startTime"));
+    }
+  </script>
 </body>
 </html>
