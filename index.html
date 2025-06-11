@@ -125,43 +125,51 @@
     }
 
     btn.onclick = async () => {
-      const employeeId = localStorage.getItem("employeeId");
-      if (!employeeId) return alert("לא מוגדר employeeId");
+  const employeeId = localStorage.getItem("employeeId");
+  if (!employeeId) return alert("לא מוגדר employeeId");
 
-      const isWorking = localStorage.getItem("isWorking") === 'true';
-      const location = await getLocation();
+  let location;
+  try {
+    location = await getLocation();
+  } catch (err) {
+    console.error("שגיאה בקבלת מיקום:", err);
+    alert("יש לאשר גישה למיקום כדי להמשיך");
+    return;
+  }
 
-      if (!isWorking) {
-        const res = await fetch(ENTRY_WEBHOOK, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            employeeId,
-            action: 'start',
-            location
-          })
-        });
-        const result = await res.json();
-        localStorage.setItem("isWorking", 'true');
-        localStorage.setItem("shiftId", result.shiftId);
-        localStorage.setItem("startTime", new Date().toISOString());
-        setButtonState(true);
-        updateTimer(localStorage.getItem("startTime"));
-      } else {
-        await sendWebhook(EXIT_WEBHOOK, {
-          employeeId,
-          shiftId: localStorage.getItem("shiftId"),
-          action: 'end',
-          location
-        });
-        localStorage.removeItem("isWorking");
-        localStorage.removeItem("shiftId");
-        localStorage.removeItem("startTime");
-        clearInterval(interval);
-        timerEl.textContent = "00:00:00";
-        setButtonState(false);
-      }
-    };
+  const isWorking = localStorage.getItem("isWorking") === 'true';
+
+  if (!isWorking) {
+    const res = await fetch(ENTRY_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        employeeId,
+        action: 'start',
+        location
+      })
+    });
+    const result = await res.json();
+    localStorage.setItem("isWorking", 'true');
+    localStorage.setItem("shiftId", result.shiftId);
+    localStorage.setItem("startTime", new Date().toISOString());
+    setButtonState(true);
+    updateTimer(localStorage.getItem("startTime"));
+  } else {
+    await sendWebhook(EXIT_WEBHOOK, {
+      employeeId,
+      shiftId: localStorage.getItem("shiftId"),
+      action: 'end',
+      location
+    });
+    localStorage.removeItem("isWorking");
+    localStorage.removeItem("shiftId");
+    localStorage.removeItem("startTime");
+    clearInterval(interval);
+    timerEl.textContent = "00:00:00";
+    setButtonState(false);
+  }
+};
 
     function init() {
       const employeeId = localStorage.getItem("employeeId");
